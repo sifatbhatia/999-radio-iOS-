@@ -56,6 +56,8 @@ struct LibraryView: View {
                     .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.06)))
 
+                    libraryActions
+
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(LibrarySegment.allCases) { item in
@@ -128,6 +130,12 @@ struct LibraryView: View {
                                 .foregroundStyle(.white.opacity(0.42))
                         }
 
+                        if filtered.isEmpty {
+                            EmptyLibraryState(title: "No songs found", subtitle: "Try a different search or filter.")
+                        } else if playableFiltered.isEmpty {
+                            EmptyLibraryState(title: "No playable songs here", subtitle: "This filter only has metadata right now.")
+                        }
+
                         LazyVStack(spacing: 0) {
                             ForEach(filtered.prefix(250)) { track in
                                 TrackRow(track: track) {
@@ -155,6 +163,39 @@ struct LibraryView: View {
             .animation(.spring(response: 0.34, dampingFraction: 0.88), value: filtered.map(\.id))
             .background(Color.radioBackground)
             .toolbarBackground(.hidden, for: .navigationBar)
+        }
+    }
+
+    private var libraryActions: some View {
+        HStack(spacing: 10) {
+            Button {
+                guard let first = playableFiltered.first else {
+                    player.playbackErrorMessage = "No playable songs in this list yet."
+                    return
+                }
+                player.play(first, from: playableFiltered)
+                showPlayer = true
+            } label: {
+                Label("Play", systemImage: "play.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .disabled(playableFiltered.isEmpty)
+            .buttonStyle(LibraryActionButtonStyle(isPrimary: true))
+
+            Button {
+                guard let first = playableFiltered.shuffled().first else {
+                    player.playbackErrorMessage = "No playable songs in this list yet."
+                    return
+                }
+                player.play(first, from: playableFiltered.shuffled())
+                if !player.isShuffle { player.toggleShuffle() }
+                showPlayer = true
+            } label: {
+                Label("Shuffle", systemImage: "shuffle")
+                    .frame(maxWidth: .infinity)
+            }
+            .disabled(playableFiltered.count < 2)
+            .buttonStyle(LibraryActionButtonStyle(isPrimary: false))
         }
     }
 }
@@ -192,6 +233,42 @@ private struct LibraryShortcut: View {
         }
         .buttonStyle(ScaleButtonStyle(scale: 0.98))
         .foregroundStyle(.white)
+    }
+}
+
+private struct LibraryActionButtonStyle: ButtonStyle {
+    let isPrimary: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.bold())
+            .frame(height: 44)
+            .background(isPrimary ? Color.accentOrange : Color.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(isPrimary ? 0 : 0.07)))
+            .foregroundStyle(.white)
+            .opacity(configuration.isPressed ? 0.72 : 1)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+    }
+}
+
+private struct EmptyLibraryState: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "music.note.list")
+                .font(.title2)
+                .foregroundStyle(.white.opacity(0.35))
+            Text(title)
+                .font(.headline)
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.48))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 
