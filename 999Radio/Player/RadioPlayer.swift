@@ -30,7 +30,14 @@ final class RadioPlayer {
     var currentTrack: Track?
     var isPlaying = false
     var isShuffle = false {
-        didSet { persistence.isShuffle = isShuffle }
+        didSet {
+            persistence.isShuffle = isShuffle
+            if isShuffle {
+                rebuildShuffleOrder()
+            } else {
+                shuffledQueue = []
+            }
+        }
     }
     var repeatMode: RepeatMode = .off {
         didSet { persistence.repeatMode = repeatMode }
@@ -57,16 +64,18 @@ final class RadioPlayer {
     @ObservationIgnored private let feedback = UIImpactFeedbackGenerator(style: .light)
     @ObservationIgnored private var lastTrackID: String?
     @ObservationIgnored private var endObserver: NSObjectProtocol?
+    @ObservationIgnored private var statusObserver: NSKeyValueObservation?
+    @ObservationIgnored private var shuffledQueue: [Track] = []
 
     init() {
         likedIDs = persistence.likedIDs
-        isShuffle = persistence.isShuffle
         repeatMode = persistence.repeatMode
         volume = persistence.volume
         recentlyPlayed = persistence.recentlyPlayed.filter(\.isPlayable)
         queue = persistence.savedQueue.filter(\.isPlayable)
         currentTrack = persistence.currentTrack?.isPlayable == true ? persistence.currentTrack : nil
         if currentTrack == nil { persistence.currentTrack = nil }
+        isShuffle = persistence.isShuffle
         player.volume = Float(volume)
         configureAudioSession()
         configureRemoteCommands()
@@ -84,6 +93,7 @@ final class RadioPlayer {
         let playableQueue = tracks.filter(\.isPlayable)
         currentTrack = track
         queue = playableQueue.contains(track) ? playableQueue : [track] + playableQueue
+        if isShuffle { rebuildShuffleOrder() }
         persistence.currentTrack = track
         recordRecentlyPlayed(track)
         configure(track)
@@ -115,15 +125,15 @@ final class RadioPlayer {
         updateNowPlayingInfo()
     }
 
+    func toggleShuffle() {
+        feedback.impactOccurred(intensity: 0.4)
+        isShuffle.toggle()
+    }
+
     func next() {
         feedback.impactOccurred(intensity: 0.45)
-        let playableQueue = queue.filter(\.isPlayable)
+        let playableQueue = activeQueue()
         guard let currentTrack, !playableQueue.isEmpty else { return }
-        queue = playableQueue
-        if isShuffle, let random = playableQueue.filter({ $0.id != currentTrack.id }).randomElement() {
-            play(random, from: playableQueue)
-            return
-        }
         let index = playableQueue.firstIndex(of: currentTrack) ?? -1
         let nextIndex = playableQueue.index(after: index)
         play(playableQueue[nextIndex < playableQueue.count ? nextIndex : 0], from: playableQueue)
@@ -131,9 +141,8 @@ final class RadioPlayer {
 
     func previous() {
         feedback.impactOccurred(intensity: 0.45)
-        let playableQueue = queue.filter(\.isPlayable)
+        let playableQueue = activeQueue()
         guard let currentTrack, !playableQueue.isEmpty else { return }
-        queue = playableQueue
         let index = playableQueue.firstIndex(of: currentTrack) ?? 0
         let previousIndex = index == 0 ? playableQueue.count - 1 : index - 1
         play(playableQueue[previousIndex], from: playableQueue)
@@ -167,7 +176,7 @@ final class RadioPlayer {
     }
 
     func upNext(limit: Int = 8) -> [Track] {
-        let playableQueue = queue.filter(\.isPlayable)
+        let playableQueue = activeQueue()
         guard let currentTrack, !playableQueue.isEmpty else { return [] }
         let start = (playableQueue.firstIndex(of: currentTrack) ?? 0) + 1
         return (0..<min(limit, playableQueue.count)).map { playableQueue[(start + $0) % playableQueue.count] }
@@ -195,6 +204,7 @@ final class RadioPlayer {
         queue.removeAll { $0.id == track.id || !$0.isPlayable }
         let currentIndex = queue.firstIndex(of: currentTrack) ?? 0
         queue.insert(track, at: min(currentIndex + 1, queue.count))
+        if isShuffle { rebuildShuffleOrder() }
     }
 
     func addToQueue(_ track: Track) {
@@ -205,16 +215,33 @@ final class RadioPlayer {
         }
         guard !queue.contains(where: { $0.id == track.id }) else { return }
         queue.append(track)
+        if isShuffle { rebuildShuffleOrder() }
     }
 
     func removeFromQueue(_ track: Track) {
         feedback.impactOccurred(intensity: 0.3)
         queue.removeAll { $0.id == track.id }
+        shuffledQueue.removeAll { $0.id == track.id }
     }
 
     func clearQueue() {
         feedback.impactOccurred(intensity: 0.3)
         queue = currentTrack.map { [$0] } ?? []
+        if isShuffle { rebuildShuffleOrder() }
+    }
+
+    private func activeQueue() -> [Track] {
+        if isShuffle, !shuffledQueue.isEmpty { return shuffledQueue }
+        return queue.filter(\.isPlayable)
+    }
+
+    private func rebuildShuffleOrder() {
+        var playable = queue.filter(\.isPlayable).shuffled()
+        if let currentTrack, let currentIndex = playable.firstIndex(of: currentTrack) {
+            let current = playable.remove(at: currentIndex)
+            playable.insert(current, at: 0)
+        }
+        shuffledQueue = playable
     }
 
     private func stopWithError(_ message: String) {
@@ -246,6 +273,7 @@ final class RadioPlayer {
             return
         }
         let item = AVPlayerItem(url: url)
+        observeStatus(of: item)
         player.replaceCurrentItem(with: item)
         observeEnd(of: item)
     }
@@ -259,7 +287,7 @@ final class RadioPlayer {
             return
         }
 
-        if repeatMode == .off, queue.filter(\.isPlayable).last == currentTrack, !isShuffle {
+        if repeatMode == .off, activeQueue().last == currentTrack, !isShuffle {
             isPlaying = false
             updateNowPlayingInfo()
             return
@@ -281,12 +309,21 @@ final class RadioPlayer {
         }
     }
 
+    private func observeStatus(of item: AVPlayerItem) {
+        statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+            guard item.status == .failed else { return }
+            Task { @MainActor in
+                self?.stopWithError(item.error?.localizedDescription ?? "The audio stream could not be opened.")
+            }
+        }
+    }
+
     private func configureAudioSession() {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.allowAirPlay])
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
-            // Playback still works in-app if the session cannot be activated yet.
+            playbackErrorMessage = error.localizedDescription
         }
     }
 
