@@ -29,6 +29,7 @@ struct ScaleButtonStyle: ButtonStyle {
 
 extension Color {
     static let radioBackground = Color(red: 0.055, green: 0.048, blue: 0.043)
+    static let accentOrange = Color(red: 0.92, green: 0.31, blue: 0.13)
 
     init(hex: String) {
         let sanitized = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)

@@ -13,8 +13,8 @@ struct MiniPlayer: View {
                 }
             } label: {
                 HStack(spacing: 12) {
-                    AsyncCover(track: track, size: 48)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    AsyncCover(track: track, size: 42)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     VStack(alignment: .leading, spacing: 3) {
                         Text(track.title).font(.subheadline.bold()).lineLimit(1)
                             .contentTransition(.opacity)
@@ -24,15 +24,16 @@ struct MiniPlayer: View {
                     Spacer()
                     Button { player.toggle() } label: {
                         Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.title3.bold())
-                            .frame(width: 42, height: 42)
+                            .font(.headline.bold())
+                            .frame(width: 36, height: 36)
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(10)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
                 .foregroundStyle(.white)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 22).stroke(.white.opacity(0.10)))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(.white.opacity(0.10)))
                 .scaleEffect(isPressed ? 0.985 : 1)
             }
             .buttonStyle(.plain)
