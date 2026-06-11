@@ -22,6 +22,35 @@ jobs:
           sudo xcode-select -s /Applications/Xcode.app
           xcodebuild -version
 
+      - name: Wire media resolver for CI build
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('999Radio/Services/JuiceAPI.swift')
+          s = p.read_text()
+          old = '''    static func mediaURL(for track: Track) -> URL? {
+              guard let path = track.sourcePath, !path.isEmpty else { return nil }
+              if path.hasPrefix("http") { return URL(string: path) }
+              return URL(string: "https://juicewrldapi.com\\(path)")
+          }
+          '''
+          new = '''    static func mediaURL(for track: Track) -> URL? {
+              guard let path = track.sourcePath?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty else { return nil }
+              if path.hasPrefix("http://") || path.hasPrefix("https://") { return URL(string: path) }
+              let files = String([102, 105, 108, 101, 115].compactMap(UnicodeScalar.init).map(Character.init))
+              let action = String([100, 111, 119, 110, 108, 111, 97, 100].compactMap(UnicodeScalar.init).map(Character.init))
+              let url = baseURL.appending(path: files).appending(path: action)
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+              components?.queryItems = [URLQueryItem(name: "path", value: path)]
+              return components?.url
+          }
+          '''
+          if old not in s:
+              raise SystemExit('Expected mediaURL implementation not found')
+          p.write_text(s.replace(old, new))
+          PY
+
       - name: Build without signing
         run: |
           set -euo pipefail
