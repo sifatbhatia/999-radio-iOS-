@@ -44,12 +44,13 @@ final class RadioPlayer {
     var progress: TimeInterval = 0
     var duration: TimeInterval = 0
     var queue: [Track] = [] {
-        didSet { persistence.savedQueue = queue }
+        didSet { persistence.savedQueue = queue.filter(\.isPlayable) }
     }
     var likedIDs: Set<String> = [] {
         didSet { persistence.likedIDs = likedIDs }
     }
     var recentlyPlayed: [Track] = []
+    var playbackErrorMessage: String?
 
     @ObservationIgnored private let persistence = RadioPersistence()
     @ObservationIgnored private let player = AVPlayer()
@@ -62,9 +63,10 @@ final class RadioPlayer {
         isShuffle = persistence.isShuffle
         repeatMode = persistence.repeatMode
         volume = persistence.volume
-        recentlyPlayed = persistence.recentlyPlayed
-        queue = persistence.savedQueue
-        currentTrack = persistence.currentTrack
+        recentlyPlayed = persistence.recentlyPlayed.filter(\.isPlayable)
+        queue = persistence.savedQueue.filter(\.isPlayable)
+        currentTrack = persistence.currentTrack?.isPlayable == true ? persistence.currentTrack : nil
+        if currentTrack == nil { persistence.currentTrack = nil }
         player.volume = Float(volume)
         configureAudioSession()
         configureRemoteCommands()
@@ -73,11 +75,18 @@ final class RadioPlayer {
 
     func play(_ track: Track, from tracks: [Track]) {
         feedback.impactOccurred(intensity: 0.55)
+        playbackErrorMessage = nil
+        guard track.isPlayable, JuiceAPI.mediaURL(for: track) != nil else {
+            stopWithError("This track does not have playable audio yet.")
+            return
+        }
+
+        let playableQueue = tracks.filter(\.isPlayable)
         currentTrack = track
-        queue = tracks
+        queue = playableQueue.contains(track) ? playableQueue : [track] + playableQueue
         persistence.currentTrack = track
         recordRecentlyPlayed(track)
-        configureIfNeeded(track)
+        configure(track)
         player.play()
         isPlaying = true
         updateNowPlayingInfo()
@@ -86,34 +95,48 @@ final class RadioPlayer {
 
     func toggle() {
         feedback.impactOccurred(intensity: 0.35)
+        playbackErrorMessage = nil
+        guard let currentTrack else { return }
+        guard currentTrack.isPlayable else {
+            stopWithError("This track does not have playable audio yet.")
+            return
+        }
+
         if isPlaying {
             player.pause()
+            isPlaying = false
         } else {
-            configureIfNeeded(currentTrack)
+            if player.currentItem == nil || lastTrackID != currentTrack.id {
+                configure(currentTrack)
+            }
             player.play()
+            isPlaying = true
         }
-        isPlaying.toggle()
         updateNowPlayingInfo()
     }
 
     func next() {
         feedback.impactOccurred(intensity: 0.45)
-        guard let currentTrack, !queue.isEmpty else { return }
-        if isShuffle, let random = queue.filter({ $0.id != currentTrack.id }).randomElement() {
-            play(random, from: queue)
+        let playableQueue = queue.filter(\.isPlayable)
+        guard let currentTrack, !playableQueue.isEmpty else { return }
+        queue = playableQueue
+        if isShuffle, let random = playableQueue.filter({ $0.id != currentTrack.id }).randomElement() {
+            play(random, from: playableQueue)
             return
         }
-        let index = queue.firstIndex(of: currentTrack) ?? -1
-        let nextIndex = queue.index(after: index)
-        play(queue[nextIndex < queue.count ? nextIndex : 0], from: queue)
+        let index = playableQueue.firstIndex(of: currentTrack) ?? -1
+        let nextIndex = playableQueue.index(after: index)
+        play(playableQueue[nextIndex < playableQueue.count ? nextIndex : 0], from: playableQueue)
     }
 
     func previous() {
         feedback.impactOccurred(intensity: 0.45)
-        guard let currentTrack, !queue.isEmpty else { return }
-        let index = queue.firstIndex(of: currentTrack) ?? 0
-        let previousIndex = index == 0 ? queue.count - 1 : index - 1
-        play(queue[previousIndex], from: queue)
+        let playableQueue = queue.filter(\.isPlayable)
+        guard let currentTrack, !playableQueue.isEmpty else { return }
+        queue = playableQueue
+        let index = playableQueue.firstIndex(of: currentTrack) ?? 0
+        let previousIndex = index == 0 ? playableQueue.count - 1 : index - 1
+        play(playableQueue[previousIndex], from: playableQueue)
     }
 
     func seek(to fraction: Double) {
@@ -144,9 +167,10 @@ final class RadioPlayer {
     }
 
     func upNext(limit: Int = 8) -> [Track] {
-        guard let currentTrack, !queue.isEmpty else { return [] }
-        let start = (queue.firstIndex(of: currentTrack) ?? 0) + 1
-        return (0..<min(limit, queue.count)).map { queue[(start + $0) % queue.count] }
+        let playableQueue = queue.filter(\.isPlayable)
+        guard let currentTrack, !playableQueue.isEmpty else { return [] }
+        let start = (playableQueue.firstIndex(of: currentTrack) ?? 0) + 1
+        return (0..<min(limit, playableQueue.count)).map { playableQueue[(start + $0) % playableQueue.count] }
     }
 
     func cycleRepeatMode() {
@@ -160,17 +184,25 @@ final class RadioPlayer {
 
     func playNext(_ track: Track) {
         feedback.impactOccurred(intensity: 0.35)
+        guard track.isPlayable else {
+            playbackErrorMessage = "This track does not have playable audio yet."
+            return
+        }
         guard let currentTrack, !queue.isEmpty else {
             queue = [track]
             return
         }
-        queue.removeAll { $0.id == track.id }
+        queue.removeAll { $0.id == track.id || !$0.isPlayable }
         let currentIndex = queue.firstIndex(of: currentTrack) ?? 0
         queue.insert(track, at: min(currentIndex + 1, queue.count))
     }
 
     func addToQueue(_ track: Track) {
         feedback.impactOccurred(intensity: 0.35)
+        guard track.isPlayable else {
+            playbackErrorMessage = "This track does not have playable audio yet."
+            return
+        }
         guard !queue.contains(where: { $0.id == track.id }) else { return }
         queue.append(track)
     }
@@ -185,19 +217,34 @@ final class RadioPlayer {
         queue = currentTrack.map { [$0] } ?? []
     }
 
+    private func stopWithError(_ message: String) {
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        lastTrackID = nil
+        currentTrack = nil
+        isPlaying = false
+        progress = 0
+        duration = 0
+        playbackErrorMessage = message
+        persistence.currentTrack = nil
+        updateNowPlayingInfo()
+    }
+
     private func recordRecentlyPlayed(_ track: Track) {
         recentlyPlayed.removeAll { $0.id == track.id }
         recentlyPlayed.insert(track, at: 0)
-        recentlyPlayed = Array(recentlyPlayed.prefix(25))
+        recentlyPlayed = Array(recentlyPlayed.filter(\.isPlayable).prefix(25))
         persistence.recentlyPlayed = recentlyPlayed
     }
 
-    private func configureIfNeeded(_ track: Track?) {
-        guard let track, lastTrackID != track.id else { return }
+    private func configure(_ track: Track) {
         lastTrackID = track.id
         progress = 0
         duration = track.duration
-        guard let url = JuiceAPI.mediaURL(for: track) else { return }
+        guard let url = JuiceAPI.mediaURL(for: track) else {
+            stopWithError("This track does not have playable audio yet.")
+            return
+        }
         let item = AVPlayerItem(url: url)
         player.replaceCurrentItem(with: item)
         observeEnd(of: item)
@@ -212,7 +259,7 @@ final class RadioPlayer {
             return
         }
 
-        if repeatMode == .off, queue.last == currentTrack, !isShuffle {
+        if repeatMode == .off, queue.filter(\.isPlayable).last == currentTrack, !isShuffle {
             isPlaying = false
             updateNowPlayingInfo()
             return
