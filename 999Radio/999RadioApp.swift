@@ -21,7 +21,7 @@ struct NineNineNineRadioApp: App {
 
 // MARK: - Models
 
-struct Track: Identifiable, Hashable, Codable {
+struct Track: Identifiable, Hashable, Codable, Sendable {
     let id: String
     let title: String
     let artist: String
@@ -41,7 +41,7 @@ struct Track: Identifiable, Hashable, Codable {
     let imageURL: URL?
 }
 
-struct RadioStats: Decodable, Equatable {
+struct RadioStats: Decodable, Equatable, Sendable {
     let totalSongs: Int?
     let totalEras: Int?
     let totalCategories: Int?
@@ -57,14 +57,14 @@ struct RadioStats: Decodable, Equatable {
     }
 }
 
-private struct APISongResponse: Decodable {
+private struct APISongResponse: Decodable, Sendable {
     let count: Int
     let next: String?
     let previous: String?
     let results: [APISong]
 }
 
-private struct APISong: Decodable {
+private struct APISong: Decodable, Sendable {
     let id: Int
     let publicID: Int?
     let name: String
@@ -96,7 +96,7 @@ private struct APISong: Decodable {
     }
 }
 
-private struct APIEra: Decodable {
+private struct APIEra: Decodable, Sendable {
     let id: Int
     let name: String
     let playCount: Int?
@@ -146,21 +146,18 @@ enum JuiceAPI {
 
     static func mediaURL(for track: Track) -> URL? {
         guard let path = track.sourcePath, !path.isEmpty else { return nil }
-        if path.hasPrefix("http") {
-            return URL(string: path)
-        }
+        if path.hasPrefix("http") { return URL(string: path) }
         return URL(string: "https://juicewrldapi.com\(path)")
     }
 
-    private static func request<T: Decodable>(_ url: URL) async throws -> T {
+    private static func request<T: Decodable & Sendable>(_ url: URL) async throws -> T {
         var request = URLRequest(url: url)
         request.cachePolicy = .reloadIgnoringLocalCacheData
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }
-        let decoder = JSONDecoder()
-        return try decoder.decode(T.self, from: data)
+        return try JSONDecoder().decode(T.self, from: data)
     }
 
     private static func mapSong(_ song: APISong, index: Int) -> Track {
@@ -211,6 +208,7 @@ enum JuiceAPI {
 
 // MARK: - App State
 
+@MainActor
 @Observable
 final class RadioLibrary {
     var tracks: [Track] = []
@@ -223,18 +221,16 @@ final class RadioLibrary {
     var unreleased: [Track] { tracks.filter { $0.category != "released" } }
 
     func loadInitialContent() async {
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { await self.search() }
-            group.addTask { await self.loadStats() }
-        }
+        await search()
+        await loadStats()
     }
 
-    @MainActor
     func search() async {
         isLoading = true
         errorMessage = nil
+        let currentQuery = query
         do {
-            let result = try await JuiceAPI.fetchSongs(query: query)
+            let result = try await JuiceAPI.fetchSongs(query: currentQuery)
             tracks = result.tracks
         } catch {
             errorMessage = "Could not load 999 Radio. Pull down or search again."
@@ -242,12 +238,12 @@ final class RadioLibrary {
         isLoading = false
     }
 
-    @MainActor
     func loadStats() async {
         stats = try? await JuiceAPI.fetchStats()
     }
 }
 
+@MainActor
 @Observable
 final class RadioPlayer {
     var currentTrack: Track?
@@ -262,24 +258,10 @@ final class RadioPlayer {
     var likedIDs: Set<String> = []
 
     @ObservationIgnored private let player = AVPlayer()
-    @ObservationIgnored private var observer: Any?
     @ObservationIgnored private var lastTrackID: String?
 
     init() {
         player.volume = Float(volume)
-        observer = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.5, preferredTimescale: 600), queue: .main) { [weak self] time in
-            self?.progress = time.seconds.isFinite ? time.seconds : 0
-            if let item = self?.player.currentItem {
-                let seconds = item.duration.seconds
-                if seconds.isFinite && seconds > 0 {
-                    self?.duration = seconds
-                }
-            }
-        }
-    }
-
-    deinit {
-        if let observer { player.removeTimeObserver(observer) }
     }
 
     func play(_ track: Track, from tracks: [Track]) {
@@ -288,7 +270,7 @@ final class RadioPlayer {
         configureIfNeeded(track)
         player.play()
         isPlaying = true
-        Task { await JuiceAPI.trackPlay(track) }
+        Task.detached { await JuiceAPI.trackPlay(track) }
     }
 
     func toggle() {
@@ -323,6 +305,16 @@ final class RadioPlayer {
         let clamped = min(max(fraction, 0), 1)
         let seconds = (duration > 0 ? duration : currentTrack?.duration ?? 0) * clamped
         player.seek(to: CMTime(seconds: seconds, preferredTimescale: 600))
+        progress = seconds
+    }
+
+    func tick() {
+        let current = player.currentTime().seconds
+        if current.isFinite { progress = current }
+        if let item = player.currentItem {
+            let seconds = item.duration.seconds
+            if seconds.isFinite && seconds > 0 { duration = seconds }
+        }
     }
 
     func toggleLike(_ id: String) {
@@ -386,6 +378,12 @@ struct RootView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
         }
+        .task {
+            while !Task.isCancelled {
+                player.tick()
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+        }
     }
 }
 
@@ -440,7 +438,7 @@ struct HomeView: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .overlay {
                 if library.isLoading && library.tracks.isEmpty {
-                    ProgressView("Tuning station…")
+                    ProgressView("Tuning station...")
                         .padding()
                         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
                 }
@@ -759,7 +757,7 @@ struct StatChip: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(value.map(String.init) ?? "—")
+            Text(value.map(String.init) ?? "-")
                 .font(.headline.monospacedDigit())
             Text(title)
                 .font(.caption2.weight(.semibold))
@@ -818,7 +816,7 @@ struct TrackRowContent: View {
                 Text(track.title)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
-                Text("\(track.artist) · \(track.album)")
+                Text("\(track.artist) - \(track.album)")
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.5))
                     .lineLimit(1)
