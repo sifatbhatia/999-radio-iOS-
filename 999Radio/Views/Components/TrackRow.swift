@@ -30,7 +30,7 @@ struct TrackRowContent: View {
     var body: some View {
         HStack(spacing: 12) {
             AsyncCover(track: track, size: 48)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text(track.title)
                     .font(.subheadline.weight(.semibold))
@@ -46,6 +46,7 @@ struct TrackRowContent: View {
                 .foregroundStyle(.white.opacity(0.38))
         }
         .foregroundStyle(.white)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
     }
 }
