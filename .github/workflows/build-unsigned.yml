@@ -37,7 +37,7 @@ jobs:
               if path.hasPrefix("http://") || path.hasPrefix("https://") { return URL(string: path) }
               let files = String([102, 105, 108, 101, 115].compactMap(UnicodeScalar.init).map(Character.init))
               let action = String([100, 111, 119, 110, 108, 111, 97, 100].compactMap(UnicodeScalar.init).map(Character.init))
-              let url = baseURL.appending(path: files).appending(path: action)
+              let url = baseURL.appending(path: files).appending(path: action + "/")
               var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
               components?.queryItems = [URLQueryItem(name: "path", value: path)]
               return components?.url
