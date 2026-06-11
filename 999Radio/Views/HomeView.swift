@@ -55,9 +55,9 @@ struct HomeView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                     }
 
-                    SectionHeader(title: "All Songs", subtitle: "\(library.tracks.count) songs loaded from the API")
+                    SectionHeader(title: "Suggestions", subtitle: library.isHydratingCatalog ? "Loading more in the background" : "\(library.tracks.count) songs ready")
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
-                        ForEach(library.tracks.prefix(8)) { track in
+                        ForEach(library.suggestions.prefix(8)) { track in
                             TrackCard(track: track) {
                                 player.play(track, from: library.tracks)
                                 showPlayer = true
@@ -68,7 +68,7 @@ struct HomeView: View {
                     .animation(.smooth(duration: 0.24), value: player.recentlyPlayed.map(\.id))
                     .animation(.smooth(duration: 0.24), value: player.likedIDs)
 
-                    SectionHeader(title: "Up Next", subtitle: player.isShuffle ? "Shuffle is on" : "Sequential")
+                    SectionHeader(title: "Quick Picks", subtitle: player.isShuffle ? "Shuffle is on" : "Sequential")
                     VStack(spacing: 8) {
                         ForEach(library.tracks.dropFirst(8).prefix(8)) { track in
                             TrackRow(track: track) {

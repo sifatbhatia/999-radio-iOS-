@@ -46,6 +46,17 @@ struct LibraryView: View {
                 .foregroundStyle(.white.opacity(0.7))
                 .listRowBackground(Color.white.opacity(0.04))
 
+                if library.isHydratingCatalog {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Loading more songs... \(library.tracks.count)/\(library.expectedSongCount)")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.55))
+                    }
+                    .listRowBackground(Color.clear)
+                    .transition(.opacity)
+                }
+
                 ForEach(filtered) { track in
                     Button {
                         player.play(track, from: filtered)

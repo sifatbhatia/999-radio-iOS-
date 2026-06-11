@@ -42,6 +42,35 @@ enum JuiceAPI {
         }
     }
 
+    static func fetchRemainingSongs(query: String = "", pageSize: Int = 100, totalCount: Int, startingAt page: Int = 2) async -> [Track] {
+        let pageCount = Int(ceil(Double(min(totalCount, 3_000)) / Double(pageSize)))
+        guard page <= pageCount else { return [] }
+
+        return await withTaskGroup(of: (Int, [Track]).self) { group in
+            for pageNumber in page...pageCount {
+                group.addTask {
+                    do {
+                        let response = try await fetchSongPage(query: query, pageSize: pageSize, page: pageNumber)
+                        let offset = (pageNumber - 1) * pageSize
+                        let tracks = response.results.enumerated().map { mapSong($0.element, index: offset + $0.offset) }
+                        return (pageNumber, tracks)
+                    } catch {
+                        return (pageNumber, [])
+                    }
+                }
+            }
+
+            var pages: [(Int, [Track])] = []
+            for await result in group {
+                pages.append(result)
+            }
+
+            return pages
+                .sorted { $0.0 < $1.0 }
+                .flatMap { $0.1 }
+        }
+    }
+
     static func fetchStats() async throws -> RadioStats {
         try await request(baseURL.appending(path: "stats/"))
     }
