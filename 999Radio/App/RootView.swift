@@ -3,19 +3,19 @@ import SwiftUI
 struct RootView: View {
     @Environment(RadioLibrary.self) private var library
     @Environment(RadioPlayer.self) private var player
-    @State private var selectedTab: AppTab = .home
+    @State private var selectedTab: AppTab = .library
     @State private var showPlayer = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $selectedTab) {
-                HomeView(showPlayer: $showPlayer)
-                    .tag(AppTab.home)
-                    .tabItem { Label("Home", systemImage: "house.fill") }
-
                 LibraryView(showPlayer: $showPlayer)
                     .tag(AppTab.library)
-                    .tabItem { Label("Library", systemImage: "rectangle.stack.fill") }
+                    .tabItem { Label("Library", systemImage: "music.note.list") }
+
+                HomeView(showPlayer: $showPlayer)
+                    .tag(AppTab.home)
+                    .tabItem { Label("Listen Now", systemImage: "play.circle.fill") }
 
                 SettingsView()
                     .tag(AppTab.settings)
