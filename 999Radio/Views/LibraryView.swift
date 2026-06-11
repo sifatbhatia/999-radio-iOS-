@@ -27,6 +27,10 @@ struct LibraryView: View {
         }
     }
 
+    private var playableFiltered: [Track] {
+        filtered.filter(\.isPlayable)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -34,7 +38,7 @@ struct LibraryView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Library")
                             .font(.system(size: 34, weight: .bold))
-                        Text(library.isHydratingCatalog ? "\(library.tracks.count) of \(library.expectedSongCount) songs loaded" : "\(filtered.count) songs")
+                        Text(library.isHydratingCatalog ? "\(library.tracks.count) of \(library.expectedSongCount) songs loaded" : "\(filtered.count) songs · \(playableFiltered.count) playable")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.52))
                     }
@@ -105,6 +109,15 @@ struct LibraryView: View {
                         .transition(.opacity)
                     }
 
+                    if let message = player.playbackErrorMessage {
+                        Text(message)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text(segment.title)
@@ -118,7 +131,11 @@ struct LibraryView: View {
                         LazyVStack(spacing: 0) {
                             ForEach(filtered.prefix(250)) { track in
                                 TrackRow(track: track) {
-                                    player.play(track, from: filtered)
+                                    guard track.isPlayable else {
+                                        player.playbackErrorMessage = "This track does not have playable audio yet."
+                                        return
+                                    }
+                                    player.play(track, from: playableFiltered)
                                     showPlayer = true
                                 }
                                 Divider()
