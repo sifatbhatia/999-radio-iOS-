@@ -18,4 +18,9 @@ struct Track: Identifiable, Hashable, Codable, Sendable {
     let category: String?
     let sourcePath: String?
     let imageURL: URL?
+
+    var isPlayable: Bool {
+        guard let sourcePath else { return false }
+        return !sourcePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 }
