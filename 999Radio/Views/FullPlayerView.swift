@@ -8,27 +8,60 @@ struct FullPlayerView: View {
     var body: some View {
         @Bindable var player = player
         ZStack {
+            Color.radioBackground.ignoresSafeArea()
+
             if let track = player.currentTrack {
                 CoverBackdrop(track: track)
+                    .ignoresSafeArea()
 
-                VStack(spacing: 20) {
-                    topBar
-                    artwork(track)
-                    metadata(track)
-                    scrubber(track)
-                    transportControls
-                    volumeControl
-                    drawerPicker(track)
-                    drawerContent(track)
-                    Spacer(minLength: 0)
+                GeometryReader { proxy in
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 18) {
+                            topBar
+                            artwork(track, maxWidth: proxy.size.width)
+                            metadata(track)
+                            scrubber(track)
+                            transportControls
+                            volumeControl
+                            drawerPicker(track)
+                            drawerContent(track)
+                        }
+                        .padding(.horizontal, 22)
+                        .padding(.top, 14)
+                        .padding(.bottom, 34)
+                        .frame(maxWidth: .infinity)
+                    }
                 }
-                .padding(.horizontal, 22)
-                .padding(.top, 14)
+            } else {
+                emptyState
+                    .padding(24)
             }
         }
         .animation(.smooth(duration: 0.22), value: player.currentTrack?.id)
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: drawer)
-        .background(Color.radioBackground.ignoresSafeArea())
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "waveform.slash")
+                .font(.system(size: 46, weight: .semibold))
+                .foregroundStyle(.orange.opacity(0.86))
+            Text("Nothing Playing")
+                .font(.title2.bold())
+            Text(player.playbackErrorMessage ?? "Pick a playable song from Library to start 999 Radio.")
+                .font(.callout)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.white.opacity(0.58))
+            Button("Back to Library") { dismiss() }
+                .font(.headline)
+                .padding(.horizontal, 18)
+                .frame(height: 44)
+                .background(Color.accentOrange, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .foregroundStyle(.white)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var topBar: some View {
@@ -56,11 +89,12 @@ struct FullPlayerView: View {
         .foregroundStyle(.white.opacity(0.86))
     }
 
-    private func artwork(_ track: Track) -> some View {
-        AsyncCover(track: track, size: 310)
+    private func artwork(_ track: Track, maxWidth: CGFloat) -> some View {
+        let size = min(maxWidth - 70, 300)
+        return AsyncCover(track: track, size: max(210, size))
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .shadow(color: .black.opacity(0.42), radius: 24, y: 14)
-            .scaleEffect(player.isPlaying ? 1 : 0.96)
+            .scaleEffect(player.isPlaying ? 1 : 0.97)
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: player.isPlaying)
     }
 
@@ -69,7 +103,8 @@ struct FullPlayerView: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(track.title)
                     .font(.title3.bold())
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.82)
                     .contentTransition(.opacity)
                 Text(track.artist)
                     .font(.callout.weight(.medium))
@@ -90,7 +125,7 @@ struct FullPlayerView: View {
     private func scrubber(_ track: Track) -> some View {
         VStack(spacing: 6) {
             Slider(value: Binding(
-                get: { player.duration > 0 ? player.progress / player.duration : 0 },
+                get: { player.duration > 0 ? min(max(player.progress / player.duration, 0), 1) : 0 },
                 set: { player.seek(to: $0) }
             ), in: 0...1)
             .tint(Color.accentOrange)
@@ -105,7 +140,7 @@ struct FullPlayerView: View {
     }
 
     private var transportControls: some View {
-        HStack(spacing: 24) {
+        HStack(spacing: 22) {
             Button { player.isShuffle.toggle() } label: {
                 Image(systemName: "shuffle")
                     .foregroundStyle(player.isShuffle ? Color.accentOrange : .white.opacity(0.48))
@@ -130,6 +165,7 @@ struct FullPlayerView: View {
         }
         .font(.title2.bold())
         .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
     }
 
     private var volumeControl: some View {
@@ -151,7 +187,9 @@ struct FullPlayerView: View {
             Text("Lyrics").tag(PlayerDrawer.lyrics)
         }
         .pickerStyle(.segmented)
-        .disabled(track.lyrics == nil && drawer == .lyrics)
+        .onChange(of: track.id) { _, _ in
+            if drawer == .lyrics, track.lyrics == nil { drawer = .upNext }
+        }
     }
 
     @ViewBuilder
@@ -166,19 +204,34 @@ struct FullPlayerView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.58))
                 }
-                ForEach(player.upNext(limit: 5)) { item in
-                    HStack(spacing: 10) {
-                        AsyncCover(track: item, size: 34)
-                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                        Button { player.play(item, from: player.queue) } label: {
-                            Text(item.title)
-                                .font(.subheadline.weight(.medium))
-                                .lineLimit(1)
+                let upNext = player.upNext(limit: 8)
+                if upNext.isEmpty {
+                    Text("No more playable songs queued.")
+                        .font(.callout)
+                        .foregroundStyle(.white.opacity(0.46))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 10)
+                } else {
+                    ForEach(upNext) { item in
+                        HStack(spacing: 10) {
+                            AsyncCover(track: item, size: 34)
+                                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                            Button { player.play(item, from: player.queue) } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.title)
+                                        .font(.subheadline.weight(.medium))
+                                        .lineLimit(1)
+                                    Text(item.artist)
+                                        .font(.caption2)
+                                        .foregroundStyle(.white.opacity(0.42))
+                                        .lineLimit(1)
+                                }
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        Button { player.removeFromQueue(item) } label: {
-                            Image(systemName: "minus.circle")
-                                .foregroundStyle(.white.opacity(0.38))
+                            }
+                            Button { player.removeFromQueue(item) } label: {
+                                Image(systemName: "minus.circle")
+                                    .foregroundStyle(.white.opacity(0.38))
+                            }
                         }
                     }
                 }
@@ -192,7 +245,7 @@ struct FullPlayerView: View {
                     .lineSpacing(5)
                     .foregroundStyle(.white.opacity(track.lyrics == nil ? 0.42 : 0.84))
             }
-            .frame(maxHeight: 180)
+            .frame(minHeight: 120, maxHeight: 260)
             .playerDrawerStyle()
         }
     }
