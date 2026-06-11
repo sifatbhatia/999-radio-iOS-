@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build unsigned .app
+    name: Build unsigned IPA
     runs-on: macos-26
 
     steps:
@@ -34,17 +34,20 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             clean build
 
-      - name: Stage unsigned app
+      - name: Package unsigned IPA
         run: |
           set -euo pipefail
           APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/999Radio.app"
           test -d "$APP_PATH"
-          mkdir -p artifacts
-          ditto -c -k --keepParent "$APP_PATH" artifacts/999Radio-unsigned.app.zip
+          rm -rf artifacts ipa-root
+          mkdir -p artifacts ipa-root/Payload
+          ditto "$APP_PATH" "ipa-root/Payload/999Radio.app"
+          (cd ipa-root && zip -qry ../artifacts/999Radio-unsigned.ipa Payload)
+          unzip -l artifacts/999Radio-unsigned.ipa | sed -n '1,40p'
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: 999Radio-unsigned-app
-          path: artifacts/999Radio-unsigned.app.zip
+          name: 999Radio-unsigned-ipa
+          path: artifacts/999Radio-unsigned.ipa
           if-no-files-found: error
