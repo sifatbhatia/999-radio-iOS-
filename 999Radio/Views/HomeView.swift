@@ -16,16 +16,16 @@ struct HomeView: View {
                         ListenSection(
                             title: "Recently Played",
                             subtitle: "Pick up where you left off",
-                            tracks: Array(player.recentlyPlayed.prefix(10)),
+                            tracks: Array(player.recentlyPlayed.filter(\.isPlayable).prefix(10)),
                             showPlayer: $showPlayer
                         )
                     }
 
-                    let likedTracks = library.tracks.filter { player.likedIDs.contains($0.id) }
+                    let likedTracks = library.tracks.filter { player.likedIDs.contains($0.id) && $0.isPlayable }
                     if !likedTracks.isEmpty {
                         ListenSection(
                             title: "Favorites",
-                            subtitle: "\(likedTracks.count) liked songs",
+                            subtitle: "\(likedTracks.count) liked playable songs",
                             tracks: Array(likedTracks.prefix(10)),
                             showPlayer: $showPlayer
                         )
@@ -34,7 +34,7 @@ struct HomeView: View {
                     ListenSection(
                         title: "Suggestions",
                         subtitle: "From the live archive",
-                        tracks: Array(library.suggestions.prefix(10)),
+                        tracks: Array(library.suggestions.filter(\.isPlayable).prefix(10)),
                         showPlayer: $showPlayer
                     )
 
@@ -69,21 +69,24 @@ struct HomeView: View {
     }
 
     private var statusText: String {
+        let playableCount = library.tracks.filter(\.isPlayable).count
         if library.isUsingCachedCatalog {
             return "Ready from cache, refreshing live"
         }
         if library.isHydratingCatalog {
             return "Refreshing the archive in the background"
         }
-        return "\(library.tracks.count) songs ready"
+        return "\(playableCount) playable songs ready"
     }
 
     private var shuffleStation: some View {
         Button {
-            let playable = library.tracks.filter { $0.sourcePath != nil }
+            let playable = library.tracks.filter(\.isPlayable)
             if let track = playable.randomElement() {
                 player.play(track, from: playable)
                 showPlayer = true
+            } else {
+                player.playbackErrorMessage = "No playable songs are loaded yet."
             }
         } label: {
             HStack(spacing: 14) {
@@ -94,7 +97,7 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Shuffle 999 Radio")
                         .font(.headline)
-                    Text("Start a station from the archive")
+                    Text("Start a station from playable archive tracks")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.52))
                 }
@@ -133,7 +136,12 @@ private struct ListenSection: View {
                 HStack(spacing: 14) {
                     ForEach(tracks) { track in
                         TrackCard(track: track) {
-                            player.play(track, from: tracks.isEmpty ? library.tracks : tracks)
+                            let playable = tracks.filter(\.isPlayable)
+                            guard track.isPlayable else {
+                                player.playbackErrorMessage = "This track does not have playable audio yet."
+                                return
+                            }
+                            player.play(track, from: playable.isEmpty ? library.tracks.filter(\.isPlayable) : playable)
                             showPlayer = true
                         }
                         .frame(width: 152)
