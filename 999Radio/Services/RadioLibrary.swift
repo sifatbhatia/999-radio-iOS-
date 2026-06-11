@@ -13,19 +13,50 @@ final class RadioLibrary {
     var errorMessage: String?
     var loadedSongCount = 0
     var expectedSongCount = 0
+    var suggestionSeed = Int(Date().timeIntervalSince1970 / 3600)
 
     var released: [Track] { tracks.filter { $0.category == "released" } }
     var unreleased: [Track] { tracks.filter { $0.category != "released" } }
     var suggestions: [Track] {
-        tracks
-            .filter { $0.sourcePath != nil }
+        let playable = tracks.filter(\.isPlayable)
+        guard !playable.isEmpty else { return [] }
+
+        let popular = playable
             .sorted { lhs, rhs in
-                if lhs.playCount == rhs.playCount {
-                    return lhs.title < rhs.title
-                }
+                if lhs.playCount == rhs.playCount { return lhs.title < rhs.title }
                 return lhs.playCount > rhs.playCount
             }
-            .prefix(12)
+            .prefix(80)
+
+        let archive = playable
+            .filter { $0.category != "released" }
+            .seededShuffle(seed: suggestionSeed &+ 999)
+            .prefix(40)
+
+        let releasedMix = playable
+            .filter { $0.category == "released" }
+            .seededShuffle(seed: suggestionSeed &+ 27)
+            .prefix(20)
+
+        return mergeTracks(Array(popular) + Array(archive) + Array(releasedMix))
+            .seededShuffle(seed: suggestionSeed)
+            .prefix(16)
+            .map { $0 }
+    }
+
+    var deepCuts: [Track] {
+        tracks
+            .filter { $0.isPlayable && $0.category != "released" }
+            .seededShuffle(seed: suggestionSeed &+ 404)
+            .prefix(16)
+            .map { $0 }
+    }
+
+    var releasedMix: [Track] {
+        released
+            .filter(\.isPlayable)
+            .seededShuffle(seed: suggestionSeed &+ 777)
+            .prefix(16)
             .map { $0 }
     }
 
@@ -33,8 +64,15 @@ final class RadioLibrary {
     @ObservationIgnored private var hydrationTask: Task<Void, Never>?
 
     func loadInitialContent() async {
+        refreshSuggestions()
         await search()
         await loadStats()
+    }
+
+    func refreshSuggestions() {
+        withAnimation(.smooth(duration: 0.25)) {
+            suggestionSeed = Int(Date().timeIntervalSince1970) ^ Int.random(in: 1...999_999)
+        }
     }
 
     func search() async {
@@ -126,5 +164,22 @@ final class RadioLibrary {
         return incoming.filter { track in
             seen.insert(track.id).inserted
         }
+    }
+}
+
+private extension Array where Element == Track {
+    func seededShuffle(seed: Int) -> [Track] {
+        sorted { lhs, rhs in
+            stableScore(lhs.id, seed: seed) < stableScore(rhs.id, seed: seed)
+        }
+    }
+
+    private func stableScore(_ id: String, seed: Int) -> UInt64 {
+        var hash = UInt64(bitPattern: Int64(seed == 0 ? 999 : seed))
+        for scalar in id.unicodeScalars {
+            hash ^= UInt64(scalar.value)
+            hash &*= 1_099_511_628_211
+        }
+        return hash
     }
 }
