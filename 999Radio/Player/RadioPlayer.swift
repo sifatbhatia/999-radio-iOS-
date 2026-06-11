@@ -29,6 +29,7 @@ enum RepeatMode: String, CaseIterable, Codable {
 final class RadioPlayer {
     var currentTrack: Track?
     var isPlaying = false
+    var isBuffering = false
     var isShuffle = false {
         didSet {
             persistence.isShuffle = isShuffle
@@ -65,6 +66,8 @@ final class RadioPlayer {
     @ObservationIgnored private var lastTrackID: String?
     @ObservationIgnored private var endObserver: NSObjectProtocol?
     @ObservationIgnored private var statusObserver: NSKeyValueObservation?
+    @ObservationIgnored private var likelyToKeepUpObserver: NSKeyValueObservation?
+    @ObservationIgnored private var playbackBufferEmptyObserver: NSKeyValueObservation?
     @ObservationIgnored private var shuffledQueue: [Track] = []
 
     init() {
@@ -77,6 +80,7 @@ final class RadioPlayer {
         if currentTrack == nil { persistence.currentTrack = nil }
         isShuffle = persistence.isShuffle
         player.volume = Float(volume)
+        player.automaticallyWaitsToMinimizeStalling = false
         configureAudioSession()
         configureRemoteCommands()
         feedback.prepare()
@@ -97,7 +101,7 @@ final class RadioPlayer {
         persistence.currentTrack = track
         recordRecentlyPlayed(track)
         configure(track)
-        player.play()
+        player.playImmediately(atRate: 1)
         isPlaying = true
         updateNowPlayingInfo()
         Task.detached { await JuiceAPI.trackPlay(track) }
@@ -119,7 +123,7 @@ final class RadioPlayer {
             if player.currentItem == nil || lastTrackID != currentTrack.id {
                 configure(currentTrack)
             }
-            player.play()
+            player.playImmediately(atRate: 1)
             isPlaying = true
         }
         updateNowPlayingInfo()
@@ -250,6 +254,7 @@ final class RadioPlayer {
         lastTrackID = nil
         currentTrack = nil
         isPlaying = false
+        isBuffering = false
         progress = 0
         duration = 0
         playbackErrorMessage = message
@@ -268,12 +273,16 @@ final class RadioPlayer {
         lastTrackID = track.id
         progress = 0
         duration = track.duration
+        isBuffering = true
         guard let url = JuiceAPI.mediaURL(for: track) else {
             stopWithError("This track does not have playable audio yet.")
             return
         }
-        let item = AVPlayerItem(url: url)
+        let asset = AVURLAsset(url: url)
+        let item = AVPlayerItem(asset: asset)
+        item.preferredForwardBufferDuration = 1.5
         observeStatus(of: item)
+        observeBuffering(of: item)
         player.replaceCurrentItem(with: item)
         observeEnd(of: item)
     }
@@ -282,7 +291,7 @@ final class RadioPlayer {
         guard let currentTrack else { return }
         if repeatMode == .one {
             seek(to: 0)
-            player.play()
+            player.playImmediately(atRate: 1)
             isPlaying = true
             return
         }
@@ -311,10 +320,26 @@ final class RadioPlayer {
 
     private func observeStatus(of item: AVPlayerItem) {
         statusObserver = item.observe(\.status, options: [.new]) { [weak self] item, _ in
-            guard item.status == .failed else { return }
             Task { @MainActor in
-                self?.stopWithError(item.error?.localizedDescription ?? "The audio stream could not be opened.")
+                switch item.status {
+                case .readyToPlay:
+                    self?.isBuffering = false
+                    self?.playbackErrorMessage = nil
+                case .failed:
+                    self?.stopWithError(item.error?.localizedDescription ?? "The audio stream could not be opened.")
+                default:
+                    break
+                }
             }
+        }
+    }
+
+    private func observeBuffering(of item: AVPlayerItem) {
+        likelyToKeepUpObserver = item.observe(\.isPlaybackLikelyToKeepUp, options: [.new]) { [weak self] item, _ in
+            Task { @MainActor in self?.isBuffering = !item.isPlaybackLikelyToKeepUp }
+        }
+        playbackBufferEmptyObserver = item.observe(\.isPlaybackBufferEmpty, options: [.new]) { [weak self] item, _ in
+            Task { @MainActor in self?.isBuffering = item.isPlaybackBufferEmpty }
         }
     }
 
@@ -366,13 +391,15 @@ final class RadioPlayer {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
             return
         }
+        let playbackDuration = duration > 0 ? duration : currentTrack.duration
         MPNowPlayingInfoCenter.default().nowPlayingInfo = [
             MPMediaItemPropertyTitle: currentTrack.title,
             MPMediaItemPropertyArtist: currentTrack.artist,
             MPMediaItemPropertyAlbumTitle: currentTrack.album,
-            MPMediaItemPropertyPlaybackDuration: duration > 0 ? duration : currentTrack.duration,
+            MPMediaItemPropertyPlaybackDuration: playbackDuration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: progress,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1 : 0
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1 : 0,
+            MPMediaItemPropertyArtwork: make999Artwork(for: currentTrack)
         ]
     }
 
@@ -381,5 +408,64 @@ final class RadioPlayer {
         info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = progress
         info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? 1 : 0
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    private func make999Artwork(for track: Track) -> MPMediaItemArtwork {
+        let size = CGSize(width: 720, height: 720)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { context in
+            let rect = CGRect(origin: .zero, size: size)
+            let baseColor = UIColor(hexString: track.coverColorHex) ?? UIColor(red: 0.12, green: 0.08, blue: 0.06, alpha: 1)
+            baseColor.setFill()
+            context.fill(rect)
+
+            UIColor.black.withAlphaComponent(0.24).setFill()
+            context.fill(rect)
+
+            let glow = UIColor.systemOrange.withAlphaComponent(0.22)
+            glow.setFill()
+            context.cgContext.fillEllipse(in: CGRect(x: -120, y: 430, width: 520, height: 520))
+            UIColor.systemPurple.withAlphaComponent(0.18).setFill()
+            context.cgContext.fillEllipse(in: CGRect(x: 330, y: -80, width: 520, height: 520))
+
+            let mark = "999"
+            let markAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 52, weight: .black),
+                .foregroundColor: UIColor.systemOrange.withAlphaComponent(0.34),
+                .kern: 3
+            ]
+            let markSize = mark.size(withAttributes: markAttributes)
+            mark.draw(at: CGPoint(x: (size.width - markSize.width) / 2, y: 18), withAttributes: markAttributes)
+
+            let title = track.title.prefix(18).uppercased()
+            let titleAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 42, weight: .heavy),
+                .foregroundColor: UIColor.white.withAlphaComponent(0.92)
+            ]
+            let titleSize = title.size(withAttributes: titleAttributes)
+            title.draw(at: CGPoint(x: (size.width - titleSize.width) / 2, y: 320), withAttributes: titleAttributes)
+
+            let subtitle = "999 RADIO"
+            let subtitleAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 18, weight: .bold),
+                .foregroundColor: UIColor.white.withAlphaComponent(0.48),
+                .kern: 4
+            ]
+            let subtitleSize = subtitle.size(withAttributes: subtitleAttributes)
+            subtitle.draw(at: CGPoint(x: (size.width - subtitleSize.width) / 2, y: 376), withAttributes: subtitleAttributes)
+        }
+        return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+    }
+}
+
+private extension UIColor {
+    convenience init?(hexString: String) {
+        var hex = hexString.trimmingCharacters(in: .whitespacesAndNewlines)
+        if hex.hasPrefix("#") { hex.removeFirst() }
+        guard hex.count == 6, let value = UInt64(hex, radix: 16) else { return nil }
+        let red = CGFloat((value & 0xFF0000) >> 16) / 255
+        let green = CGFloat((value & 0x00FF00) >> 8) / 255
+        let blue = CGFloat(value & 0x0000FF) / 255
+        self.init(red: red, green: green, blue: blue, alpha: 1)
     }
 }
