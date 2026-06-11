@@ -4,6 +4,10 @@ Native SwiftUI rebuild of the 999 Radio web app for iOS 26.
 
 This is not a WebView wrapper. It uses SwiftUI, Observation, AVFoundation, async networking, and the same Juice WRLD API consumed by the web app.
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the staged product and architecture plan. The next recommended work is to split the current single Swift file into app, model, service, player, persistence, and view modules before adding more feature surface area.
+
 ## What is included
 
 - Native SwiftUI home/library/player/settings UI

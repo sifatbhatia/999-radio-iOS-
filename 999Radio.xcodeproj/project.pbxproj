@@ -8,12 +8,52 @@
 
 /* Begin PBXBuildFile section */
 		A10000000000000000000001 /* 999RadioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002 /* 999RadioApp.swift */; };
+		A10000000000000000000101 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000201 /* RootView.swift */; };
+		A10000000000000000000102 /* Track.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000202 /* Track.swift */; };
+		A10000000000000000000103 /* RadioStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000203 /* RadioStats.swift */; };
+		A10000000000000000000104 /* JuiceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000204 /* JuiceAPI.swift */; };
+		A10000000000000000000105 /* RadioLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000205 /* RadioLibrary.swift */; };
+		A10000000000000000000106 /* RadioPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000206 /* RadioPlayer.swift */; };
+		A10000000000000000000107 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000207 /* HomeView.swift */; };
+		A10000000000000000000108 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000208 /* LibraryView.swift */; };
+		A10000000000000000000109 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000209 /* SettingsView.swift */; };
+		A1000000000000000000010A /* FullPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000020A /* FullPlayerView.swift */; };
+		A1000000000000000000010B /* MiniPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000020B /* MiniPlayer.swift */; };
+		A1000000000000000000010C /* HeroStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000020C /* HeroStats.swift */; };
+		A1000000000000000000010D /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000020D /* SectionHeader.swift */; };
+		A1000000000000000000010E /* TrackCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000020E /* TrackCard.swift */; };
+		A1000000000000000000010F /* TrackRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000020F /* TrackRow.swift */; };
+		A10000000000000000000110 /* CoverArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000210 /* CoverArt.swift */; };
+		A10000000000000000000111 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000211 /* DesignSystem.swift */; };
+		A10000000000000000000112 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000212 /* Formatters.swift */; };
+		A10000000000000000000113 /* RadioPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000213 /* RadioPersistence.swift */; };
+		A10000000000000000000114 /* SpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000214 /* SpotlightIndexer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A10000000000000000000002 /* 999RadioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = 999RadioApp.swift; sourceTree = "<group>"; };
+		A10000000000000000000002 /* 999RadioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/999RadioApp.swift; sourceTree = "<group>"; };
 		A10000000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10000000000000000000004 /* 999Radio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = 999Radio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000201 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/RootView.swift; sourceTree = "<group>"; };
+		A10000000000000000000202 /* Track.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/Track.swift; sourceTree = "<group>"; };
+		A10000000000000000000203 /* RadioStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/RadioStats.swift; sourceTree = "<group>"; };
+		A10000000000000000000204 /* JuiceAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/JuiceAPI.swift; sourceTree = "<group>"; };
+		A10000000000000000000205 /* RadioLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/RadioLibrary.swift; sourceTree = "<group>"; };
+		A10000000000000000000206 /* RadioPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Player/RadioPlayer.swift; sourceTree = "<group>"; };
+		A10000000000000000000207 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/HomeView.swift; sourceTree = "<group>"; };
+		A10000000000000000000208 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/LibraryView.swift; sourceTree = "<group>"; };
+		A10000000000000000000209 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/SettingsView.swift; sourceTree = "<group>"; };
+		A1000000000000000000020A /* FullPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/FullPlayerView.swift; sourceTree = "<group>"; };
+		A1000000000000000000020B /* MiniPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MiniPlayer.swift; sourceTree = "<group>"; };
+		A1000000000000000000020C /* HeroStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components/HeroStats.swift; sourceTree = "<group>"; };
+		A1000000000000000000020D /* SectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components/SectionHeader.swift; sourceTree = "<group>"; };
+		A1000000000000000000020E /* TrackCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components/TrackCard.swift; sourceTree = "<group>"; };
+		A1000000000000000000020F /* TrackRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components/TrackRow.swift; sourceTree = "<group>"; };
+		A10000000000000000000210 /* CoverArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components/CoverArt.swift; sourceTree = "<group>"; };
+		A10000000000000000000211 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support/DesignSystem.swift; sourceTree = "<group>"; };
+		A10000000000000000000212 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support/Formatters.swift; sourceTree = "<group>"; };
+		A10000000000000000000213 /* RadioPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/RadioPersistence.swift; sourceTree = "<group>"; };
+		A10000000000000000000214 /* SpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/SpotlightIndexer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -42,6 +82,26 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000002 /* 999RadioApp.swift */,
+				A10000000000000000000201 /* RootView.swift */,
+				A10000000000000000000202 /* Track.swift */,
+				A10000000000000000000203 /* RadioStats.swift */,
+				A10000000000000000000204 /* JuiceAPI.swift */,
+				A10000000000000000000205 /* RadioLibrary.swift */,
+				A10000000000000000000206 /* RadioPlayer.swift */,
+				A10000000000000000000207 /* HomeView.swift */,
+				A10000000000000000000208 /* LibraryView.swift */,
+				A10000000000000000000209 /* SettingsView.swift */,
+				A1000000000000000000020A /* FullPlayerView.swift */,
+				A1000000000000000000020B /* MiniPlayer.swift */,
+				A1000000000000000000020C /* HeroStats.swift */,
+				A1000000000000000000020D /* SectionHeader.swift */,
+				A1000000000000000000020E /* TrackCard.swift */,
+				A1000000000000000000020F /* TrackRow.swift */,
+				A10000000000000000000210 /* CoverArt.swift */,
+				A10000000000000000000211 /* DesignSystem.swift */,
+				A10000000000000000000212 /* Formatters.swift */,
+				A10000000000000000000213 /* RadioPersistence.swift */,
+				A10000000000000000000214 /* SpotlightIndexer.swift */,
 				A10000000000000000000003 /* Info.plist */,
 			);
 			path = 999Radio;
@@ -125,6 +185,26 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000001 /* 999RadioApp.swift in Sources */,
+				A10000000000000000000101 /* RootView.swift in Sources */,
+				A10000000000000000000102 /* Track.swift in Sources */,
+				A10000000000000000000103 /* RadioStats.swift in Sources */,
+				A10000000000000000000104 /* JuiceAPI.swift in Sources */,
+				A10000000000000000000105 /* RadioLibrary.swift in Sources */,
+				A10000000000000000000106 /* RadioPlayer.swift in Sources */,
+				A10000000000000000000107 /* HomeView.swift in Sources */,
+				A10000000000000000000108 /* LibraryView.swift in Sources */,
+				A10000000000000000000109 /* SettingsView.swift in Sources */,
+				A1000000000000000000010A /* FullPlayerView.swift in Sources */,
+				A1000000000000000000010B /* MiniPlayer.swift in Sources */,
+				A1000000000000000000010C /* HeroStats.swift in Sources */,
+				A1000000000000000000010D /* SectionHeader.swift in Sources */,
+				A1000000000000000000010E /* TrackCard.swift in Sources */,
+				A1000000000000000000010F /* TrackRow.swift in Sources */,
+				A10000000000000000000110 /* CoverArt.swift in Sources */,
+				A10000000000000000000111 /* DesignSystem.swift in Sources */,
+				A10000000000000000000112 /* Formatters.swift in Sources */,
+				A10000000000000000000113 /* RadioPersistence.swift in Sources */,
+				A10000000000000000000114 /* SpotlightIndexer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
