@@ -44,6 +44,21 @@ struct RadioPersistence {
         }
     }
 
+    var cachedCatalog: [Track] {
+        get { decodeTracks(forKey: Keys.cachedCatalog) }
+        nonmutating set { encode(Array(newValue.prefix(3_000)), forKey: Keys.cachedCatalog) }
+    }
+
+    var cachedCatalogDate: Date? {
+        get { defaults.object(forKey: Keys.cachedCatalogDate) as? Date }
+        nonmutating set { defaults.set(newValue, forKey: Keys.cachedCatalogDate) }
+    }
+
+    var cachedCatalogCount: Int {
+        get { defaults.integer(forKey: Keys.cachedCatalogCount) }
+        nonmutating set { defaults.set(newValue, forKey: Keys.cachedCatalogCount) }
+    }
+
     var savedQueue: [Track] {
         get { decodeTracks(forKey: Keys.savedQueue) }
         nonmutating set { encode(Array(newValue.prefix(100)), forKey: Keys.savedQueue) }
@@ -78,6 +93,9 @@ struct RadioPersistence {
         static let repeatMode = "radio.repeatMode"
         static let volume = "radio.volume"
         static let recentlyPlayed = "radio.recentlyPlayed"
+        static let cachedCatalog = "radio.cachedCatalog"
+        static let cachedCatalogDate = "radio.cachedCatalogDate"
+        static let cachedCatalogCount = "radio.cachedCatalogCount"
         static let savedQueue = "radio.savedQueue"
         static let currentTrack = "radio.currentTrack"
     }

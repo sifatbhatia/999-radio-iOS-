@@ -6,99 +6,159 @@ struct HomeView: View {
     @Binding var showPlayer: Bool
 
     var body: some View {
-        @Bindable var library = library
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    HeroStats(stats: library.stats)
-
-                    HStack(spacing: 10) {
-                        Image(systemName: "magnifyingglass")
-                        TextField("Search the archive", text: $library.query)
-                            .textInputAutocapitalization(.never)
-                            .submitLabel(.search)
-                            .onSubmit { Task { await library.search() } }
-                    }
-                    .padding(14)
-                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                VStack(alignment: .leading, spacing: 24) {
+                    header
+                    shuffleStation
 
                     if !player.recentlyPlayed.isEmpty {
-                        SectionHeader(title: "Recently Played", subtitle: "Your latest sessions")
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 14) {
-                                ForEach(player.recentlyPlayed.prefix(12)) { track in
-                                    TrackCard(track: track) {
-                                        player.play(track, from: player.queue.isEmpty ? library.tracks : player.queue)
-                                        showPlayer = true
-                                    }
-                                    .frame(width: 156)
-                                }
-                            }
-                        }
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        ListenSection(
+                            title: "Recently Played",
+                            subtitle: "Pick up where you left off",
+                            tracks: Array(player.recentlyPlayed.prefix(10)),
+                            showPlayer: $showPlayer
+                        )
                     }
 
-                    if !player.likedIDs.isEmpty {
-                        let likedTracks = library.tracks.filter { player.likedIDs.contains($0.id) }
-                        SectionHeader(title: "Liked Songs", subtitle: "\(likedTracks.count) saved tracks")
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 14) {
-                                ForEach(likedTracks.prefix(12)) { track in
-                                    TrackCard(track: track) {
-                                        player.play(track, from: likedTracks)
-                                        showPlayer = true
-                                    }
-                                    .frame(width: 156)
-                                }
-                            }
-                        }
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                    let likedTracks = library.tracks.filter { player.likedIDs.contains($0.id) }
+                    if !likedTracks.isEmpty {
+                        ListenSection(
+                            title: "Favorites",
+                            subtitle: "\(likedTracks.count) liked songs",
+                            tracks: Array(likedTracks.prefix(10)),
+                            showPlayer: $showPlayer
+                        )
                     }
 
-                    SectionHeader(title: "Suggestions", subtitle: library.isHydratingCatalog ? "Loading more in the background" : "\(library.tracks.count) songs ready")
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
-                        ForEach(library.suggestions.prefix(8)) { track in
-                            TrackCard(track: track) {
-                                player.play(track, from: library.tracks)
-                                showPlayer = true
-                            }
-                        }
-                    }
-                    .animation(.spring(response: 0.36, dampingFraction: 0.86), value: library.tracks.map(\.id))
-                    .animation(.smooth(duration: 0.24), value: player.recentlyPlayed.map(\.id))
-                    .animation(.smooth(duration: 0.24), value: player.likedIDs)
+                    ListenSection(
+                        title: "Suggestions",
+                        subtitle: "From the live archive",
+                        tracks: Array(library.suggestions.prefix(10)),
+                        showPlayer: $showPlayer
+                    )
 
-                    SectionHeader(title: "Quick Picks", subtitle: player.isShuffle ? "Shuffle is on" : "Sequential")
-                    VStack(spacing: 8) {
-                        ForEach(library.tracks.dropFirst(8).prefix(8)) { track in
-                            TrackRow(track: track) {
-                                player.play(track, from: library.tracks)
-                            }
-                        }
-                    }
-                    .animation(.spring(response: 0.34, dampingFraction: 0.88), value: library.tracks.map(\.id))
+                    quickStats
                 }
                 .padding(18)
-                .padding(.bottom, 96)
+                .padding(.bottom, 108)
             }
             .refreshable { await library.loadInitialContent() }
-            .navigationTitle("999 Radio")
+            .background(Color.radioBackground)
             .toolbarBackground(.hidden, for: .navigationBar)
             .overlay {
                 if library.isLoading && library.tracks.isEmpty {
                     ProgressView("Tuning station...")
                         .padding()
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
                         .transition(.scale(scale: 0.96).combined(with: .opacity))
                 }
             }
-            .animation(.smooth(duration: 0.25), value: library.isLoading)
-            .alert("Signal lost", isPresented: .constant(library.errorMessage != nil)) {
-                Button("Retry") { Task { await library.search() } }
-                Button("Dismiss", role: .cancel) { library.errorMessage = nil }
-            } message: {
-                Text(library.errorMessage ?? "")
+            .animation(.smooth(duration: 0.24), value: library.isLoading)
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Listen Now")
+                .font(.system(size: 34, weight: .bold))
+            Text(statusText)
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.52))
+        }
+    }
+
+    private var statusText: String {
+        if library.isUsingCachedCatalog {
+            return "Ready from cache, refreshing live"
+        }
+        if library.isHydratingCatalog {
+            return "Refreshing the archive in the background"
+        }
+        return "\(library.tracks.count) songs ready"
+    }
+
+    private var shuffleStation: some View {
+        Button {
+            let playable = library.tracks.filter { $0.sourcePath != nil }
+            if let track = playable.randomElement() {
+                player.play(track, from: playable)
+                showPlayer = true
+            }
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "sparkles")
+                    .font(.title2.bold())
+                    .frame(width: 48, height: 48)
+                    .background(Color.accentOrange, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Shuffle 999 Radio")
+                        .font(.headline)
+                    Text("Start a station from the archive")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.52))
+                }
+                Spacer()
+                Image(systemName: "play.fill")
+            }
+            .padding(14)
+            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(.white.opacity(0.06)))
+        }
+        .buttonStyle(ScaleButtonStyle(scale: 0.98))
+        .foregroundStyle(.white)
+    }
+
+    private var quickStats: some View {
+        HStack(spacing: 10) {
+            StatPill(title: "Songs", value: library.stats?.totalSongs ?? library.expectedSongCount)
+            StatPill(title: "Released", value: library.stats?.releasedSongs ?? library.released.count)
+            StatPill(title: "Archive", value: library.stats?.unreleasedSongs ?? library.unreleased.count)
+        }
+    }
+}
+
+private struct ListenSection: View {
+    @Environment(RadioLibrary.self) private var library
+    @Environment(RadioPlayer.self) private var player
+    let title: String
+    let subtitle: String
+    let tracks: [Track]
+    @Binding var showPlayer: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: title, subtitle: subtitle)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    ForEach(tracks) { track in
+                        TrackCard(track: track) {
+                            player.play(track, from: tracks.isEmpty ? library.tracks : tracks)
+                            showPlayer = true
+                        }
+                        .frame(width: 152)
+                    }
+                }
             }
         }
+        .transition(.opacity)
+    }
+}
+
+private struct StatPill: View {
+    let title: String
+    let value: Int?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value.map(String.init) ?? "-")
+                .font(.headline.monospacedDigit())
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.44))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }

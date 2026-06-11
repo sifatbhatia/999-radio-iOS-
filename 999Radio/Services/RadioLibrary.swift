@@ -9,6 +9,7 @@ final class RadioLibrary {
     var query = ""
     var isLoading = false
     var isHydratingCatalog = false
+    var isUsingCachedCatalog = false
     var errorMessage: String?
     var loadedSongCount = 0
     var expectedSongCount = 0
@@ -28,6 +29,7 @@ final class RadioLibrary {
             .map { $0 }
     }
 
+    @ObservationIgnored private let persistence = RadioPersistence()
     @ObservationIgnored private var hydrationTask: Task<Void, Never>?
 
     func loadInitialContent() async {
@@ -37,12 +39,18 @@ final class RadioLibrary {
 
     func search() async {
         hydrationTask?.cancel()
+        let currentQuery = query
+        let trimmedQuery = currentQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmedQuery.isEmpty, tracks.isEmpty {
+            loadCachedCatalogIfAvailable()
+        }
+
         withAnimation(.smooth(duration: 0.2)) {
-            isLoading = true
+            isLoading = tracks.isEmpty
             isHydratingCatalog = false
         }
         errorMessage = nil
-        let currentQuery = query
         do {
             let result = try await JuiceAPI.fetchSongs(query: currentQuery)
             withAnimation(.smooth(duration: 0.28)) {
@@ -50,10 +58,13 @@ final class RadioLibrary {
                 loadedSongCount = result.tracks.count
                 expectedSongCount = result.count
                 isLoading = false
+                isUsingCachedCatalog = false
             }
             hydrateCatalogIfNeeded(query: currentQuery, totalCount: result.count)
         } catch {
-            errorMessage = "Could not load 999 Radio. Pull down or search again."
+            if tracks.isEmpty {
+                errorMessage = "Could not load 999 Radio. Pull down or search again."
+            }
             withAnimation(.smooth(duration: 0.22)) {
                 isLoading = false
                 isHydratingCatalog = false
@@ -87,9 +98,26 @@ final class RadioLibrary {
             withAnimation(.smooth(duration: 0.3)) {
                 tracks = hydratedTracks
                 loadedSongCount = hydratedTracks.count
+                expectedSongCount = max(totalCount, hydratedTracks.count)
                 isHydratingCatalog = false
+                isUsingCachedCatalog = false
             }
+            persistence.cachedCatalog = hydratedTracks
+            persistence.cachedCatalogCount = max(totalCount, hydratedTracks.count)
+            persistence.cachedCatalogDate = Date()
             SpotlightIndexer.index(hydratedTracks)
+        }
+    }
+
+    private func loadCachedCatalogIfAvailable() {
+        let cached = persistence.cachedCatalog
+        guard !cached.isEmpty else { return }
+
+        withAnimation(.smooth(duration: 0.2)) {
+            tracks = cached
+            loadedSongCount = cached.count
+            expectedSongCount = max(persistence.cachedCatalogCount, cached.count)
+            isUsingCachedCatalog = true
         }
     }
 
