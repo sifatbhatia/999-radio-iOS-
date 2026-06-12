@@ -22,6 +22,17 @@ jobs:
           sudo xcode-select -s /Applications/Xcode.app
           xcodebuild -version
 
+      - name: Generate app icon assets
+        run: |
+          set -euo pipefail
+          ICON_SET="999Radio/Assets.xcassets/AppIcon.appiconset"
+          mkdir -p "$ICON_SET"
+          base64 --decode BuildAssets/AppIconSource.b64 > /tmp/999RadioIcon.png
+          sips -z 180 180 /tmp/999RadioIcon.png --out "$ICON_SET/Icon-180.png" >/dev/null
+          sips -z 1024 1024 /tmp/999RadioIcon.png --out "$ICON_SET/Icon-1024.png" >/dev/null
+          file "$ICON_SET/Icon-180.png"
+          file "$ICON_SET/Icon-1024.png"
+
       - name: Wire media resolver for CI build
         run: |
           set -euo pipefail
